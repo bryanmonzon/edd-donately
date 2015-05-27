@@ -9,8 +9,17 @@ Author URI: http://mnzn.co
 Contributors: bryanmonzon
 */
 
-// Don't forget to load the text domain here. Sample text domain is dntly_edd
-
+/**
+ * Internationalization
+ *
+ * @access      public
+ * @since       1.6.6
+ * @return      void
+ */
+function edds_textdomain() {
+	load_plugin_textdomain( 'dntly_edd', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
+}
+add_action( 'init', 'edds_textdomain' );
 
 /**
  * Register Donately as a gateway
@@ -45,6 +54,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 
 	if ( edd_is_test_mode() ) {
 		// set test credentials here
+		// Currently using "demo" and CC# 4242 will process as expected for testing
 		$dntly_key          = $edd_options['dntly_api_key'];
 		$dntly_subdomain    = 'demo';
 		$dntly_api_domain   = 'dntly.com';
@@ -65,6 +75,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 	$url .= $dntly_api_endpoint;
 	$url .= $dntly_method;
 
+	//Set some vars to send over to Donately
 	$disable_email = !empty( $edd_options['dntly_disable_donately_email'] ) ? true : false;
 	$anonymous     = !empty( $purchase_data['post_data']['dntly_edd_anonymous'] ) ? true : false;
 	$onbehalf      = !empty( $purchase_data['post_data']['dntly_edd_on_behalf'] ) ? $purchase_data['post_data']['dntly_edd_on_behalf'] : null;
@@ -102,10 +113,11 @@ function dntly_edd_process_payment( $purchase_data ) {
 	// check for stored errors
 	$errors = edd_get_errors();
 	if ( ! $errors ) {
-
 		
+		//set $headers to empty array for now	
 		$headers = array();
 
+		//Setup card array with data from the form
 		$card = array(
 			'number'    => $purchase_data['card_info']['card_number'],
 			'exp_month' => $purchase_data['card_info']['card_exp_month'],
@@ -114,6 +126,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 		);
 
 
+		//Send donation to Donately
 		$response = wp_safe_remote_post( $url, array(
 			'method'      => 'POST',
 			'timeout'     => 45,
@@ -186,6 +199,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 			}
 		}else{
 
+			//output donately's error message if failed to post
 			edd_set_error('empty_card', __( $donation->error->message, 'donately_edd'));
 			edd_send_back_to_checkout( '?payment-mode=' . $purchase_data['post_data']['edd-gateway'] );
 		}
@@ -387,24 +401,47 @@ function edd_descriptive_text2_callback( $args ) {
 function dntly_edd_donate_anoynmously_fields() {
 	global $edd_options;
 
+	if( $edd_options['dntly_anonymous'] || $edd_options['dntly_on_behalf'] || $edd_options['dntly_comment'] ){
+		?>
+		<fieldset id="dntly_edd_fields">
+			<span><legend><?php echo apply_filters( 'dntly_edd_donation_info', __( 'Donation Information Info', 'edd' ) ); ?></legend></span>
+		<?php
+	}
+
 	if( $edd_options['dntly_anonymous'] ) { ?>
+	
 	<p id="edd-anonymous-wrap">
 		<label class="edd-label" for="edd-anonymous"><?php _e('Donate Anonymously', 'dntly_edd'); ?></label>
 		<input class="edd-checkbox" style="margin-top:5px;" type="checkbox" name="dntly_edd_anonymous" id="dntly_edd_anonymous" value="1"/>
 		<span class="edd-description"><?php _e( 'Check the box to donate anonymously.', 'dntly_edd' ); ?></span>
-	</p>
+	
+	
 	<?php
 	}
 	if( $edd_options['dntly_on_behalf']) { ?>
+	
 	<p id="edd-on-behalf-wrap">
 		<label class="edd-label" for="edd-on-behalf"><?php _e('Donate on behalf of someone', 'dntly_edd'); ?></label>
 		<input class="edd-input" type="text" name="dntly_edd_on_behalf" id="dntly_edd_on_behalf" value=""/>
 		<span class="edd-description"><?php _e( 'Enter the full name of someone you would like to donate on behalf of.', 'dntly_edd' ); ?></span>
 	</p>	
+	
 	<?php
 	}
+	if( $edd_options['dntly_comment']) { ?>
+	<p id="edd-comment-wrap">
+		<label class="edd-label" for="edd-comment"><?php _e('Leave a comment', 'dntly_edd'); ?></label>
+		<textarea class="edd-input" name="dntly_edd_comment" id="dntly_edd_comment" value=""/></textarea>
+		<span class="edd-description"><?php _e( 'Add a comment to your donation.', 'dntly_edd' ); ?></span>
+	</p>	
+	<?php
+	}
+
+	if( $edd_options['dntly_anonymous'] || $edd_options['dntly_on_behalf'] || $edd_options['dntly_comment'] ){
+		?></fieldset><?php
+	}
 }
-add_action('edd_purchase_form_before_email', 'dntly_edd_donate_anoynmously_fields');
+add_action('edd_purchase_form_before_cc_form', 'dntly_edd_donate_anoynmously_fields');
 
 
 /**
@@ -420,14 +457,12 @@ function dntly_edd_comment_field(){
 		<label class="edd-label" for="edd-comment"><?php _e('Leave a comment', 'dntly_edd'); ?></label>
 		<textarea class="edd-input" name="dntly_edd_comment" id="dntly_edd_comment" value=""/></textarea>
 		<span class="edd-description"><?php _e( 'Add a comment to your donation.', 'dntly_edd' ); ?></span>
-	</p>
-
-	
+	</p>	
 	<?php
 	}
 
 }
-add_action( 'edd_purchase_form_user_info', 'dntly_edd_comment_field' );
+// add_action( 'edd_purchase_form_user_info', 'dntly_edd_comment_field' );
 
 
 /**
