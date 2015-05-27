@@ -16,10 +16,10 @@ Contributors: bryanmonzon
  * @since       1.6.6
  * @return      void
  */
-function edds_textdomain() {
+function dntly_edd_textdomain() {
 	load_plugin_textdomain( 'dntly_edd', false, dirname( plugin_basename( __FILE__ ) ) . '/languages/' );
 }
-add_action( 'init', 'edds_textdomain' );
+add_action( 'init', 'dntly_edd_textdomain' );
 
 /**
  * Register Donately as a gateway
