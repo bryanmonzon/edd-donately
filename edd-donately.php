@@ -62,6 +62,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 	$disable_email = !empty( $edd_options['dntly_disable_donately_email'] ) ? true : false;
 	$anonymous     = !empty( $purchase_data['post_data']['dntly_edd_anonymous'] ) ? true : false;
 	$onbehalf      = !empty( $purchase_data['post_data']['dntly_edd_on_behalf'] ) ? $purchase_data['post_data']['dntly_edd_on_behalf'] : null;
+	$comment       = !empty( $purchase_data['post_data']['dntly_edd_comment'] ) ? $purchase_data['post_data']['dntly_edd_comment'] : null;
 
 	/*echo '<pre>';
 	print_r( $purchase_data );
@@ -141,6 +142,7 @@ function dntly_edd_process_payment( $purchase_data ) {
 				'campaign_id'             => '',
 				'dont_send_receipt_email' => $disable_email,
 				'on_behalf_of'			  => $onbehalf,
+				'comment'				  => $comment,
 			),
 			'cookies'     => array()
 			));
@@ -266,6 +268,12 @@ function dntly_edd_add_settings( $settings ) {
 			'desc' => __( 'Check the box to allow donors to donate on behalf of people.', 'dntly_edd' ),
 			'type' => 'checkbox'
 		),
+		array(
+			'id' => 'dntly_comment',
+			'name' => __( 'Allow Comments', 'dntly_edd' ),
+			'desc' => __( 'Check the box to allow donors to leave a comment.', 'dntly_edd' ),
+			'type' => 'checkbox'
+		),
 	);
 
 	return array_merge( $settings, $donately_gateway_settings );
@@ -302,7 +310,7 @@ function dntly_edd_render_campaigns( $post_id ) {
 	</label>
 <?php
 }
-add_action( 'edd_meta_box_settings_fields', 'dntly_edd_render_campaigns', 90 );
+// add_action( 'edd_meta_box_settings_fields', 'dntly_edd_render_campaigns', 90 );
 
 /**
  * Save the Campaign ID
@@ -317,7 +325,7 @@ function dntly_edd_campaigns_save( $fields ) {
 	// Return the fields array
 	return $fields;
 }
-add_filter( 'edd_metabox_fields_save', 'dntly_edd_campaigns_save' );
+// add_filter( 'edd_metabox_fields_save', 'dntly_edd_campaigns_save' );
 
 
 /**
@@ -414,12 +422,28 @@ function dntly_edd_donate_anoynmously_fields() {
 		<label class="edd-label" for="edd-on-behalf"><?php _e('Donate on behalf of someone', 'dntly_edd'); ?></label>
 		<input class="edd-input" type="text" name="dntly_edd_on_behalf" id="dntly_edd_on_behalf" value=""/>
 		<span class="edd-description"><?php _e( 'Enter the full name of someone you would like to donate on behalf of.', 'dntly_edd' ); ?></span>
-	</p>
-	
+	</p>	
 	<?php
 	}
 }
 add_action('edd_purchase_form_before_email', 'dntly_edd_donate_anoynmously_fields');
+
+function dntly_edd_comment_field(){
+	global $edd_options;
+
+	if( $edd_options['dntly_comment']) { ?>
+	<p id="edd-comment-wrap">
+		<label class="edd-label" for="edd-comment"><?php _e('Leave a comment', 'dntly_edd'); ?></label>
+		<textarea class="edd-input" name="dntly_edd_comment" id="dntly_edd_comment" value=""/></textarea>
+		<span class="edd-description"><?php _e( 'Add a comment to your donation.', 'dntly_edd' ); ?></span>
+	</p>
+
+	
+	<?php
+	}
+
+}
+add_action( 'edd_purchase_form_user_info', 'dntly_edd_comment_field' );
 
 
 /**
@@ -436,6 +460,11 @@ function dntly_edd_store_anonymous_donation($payment_meta) {
 
 	if( $edd_options['dntly_on_behalf']){
 		$payment_meta['onbehalf'] = isset( $_POST['dntly_edd_on_behalf'] ) ? sanitize_text_field( $_POST['dntly_edd_on_behalf'] ) : 0;	
+	}
+
+	if( $edd_options['dntly_comment']) {
+		$payment_meta['comment'] = isset( $_POST['dntly_edd_comment'] ) ? sanitize_text_field( $_POST['dntly_edd_comment'] ) : 0;	
+
 	}
 
 	return $payment_meta;
@@ -463,6 +492,13 @@ function dntly_edd_donation_details($payment_meta, $user_info) {
 		$onbehalf   = isset( $payment_meta['onbehalf'] ) ? $payment_meta['onbehalf'] : 'No';	
 	?>
 	<li><?php echo __('Donated on behalf of:', 'dntly_edd') . ' ' . $onbehalf; ?></li>
+	<?php
+	} 
+
+	if( $edd_options['dntly_comment'] ){
+		$comment   = isset( $payment_meta['comment'] ) ? $payment_meta['comment'] : 'No comments left';	
+	?>
+	<li><?php echo __('Donor comment:', 'dntly_edd') . ' ' . $comment; ?></li>
 	<?php
 	} 
 	
