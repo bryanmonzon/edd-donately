@@ -56,62 +56,52 @@ function dntly_edd_process_payment( $purchase_data ) {
 		$dntly_api_domain   = 'dntly.com';
 		$dntly_api_endpoint = "/api/v1/";
 		$dntly_method       = 'accounts/'. $dntly_subdomain .'/donate_without_auth';
-
 	}
+
+	//build the API URL
+	$url = 'https://';
+	$url .= $dntly_subdomain;
+	$url .= '.' . $dntly_api_domain;
+	$url .= $dntly_api_endpoint;
+	$url .= $dntly_method;
 
 	$disable_email = !empty( $edd_options['dntly_disable_donately_email'] ) ? true : false;
 	$anonymous     = !empty( $purchase_data['post_data']['dntly_edd_anonymous'] ) ? true : false;
 	$onbehalf      = !empty( $purchase_data['post_data']['dntly_edd_on_behalf'] ) ? $purchase_data['post_data']['dntly_edd_on_behalf'] : null;
 	$comment       = !empty( $purchase_data['post_data']['dntly_edd_comment'] ) ? $purchase_data['post_data']['dntly_edd_comment'] : null;
 
-	/*echo '<pre>';
-	print_r( $purchase_data );
-	echo '</pre>';
-	wp_die();*/
-
-
-
-	/**********************************
-	* check for errors here
-	**********************************/
 	
 	
-	// errors can be set like this
+	// Check for errors
 	if( empty($_POST['card_number'] ) ) {
-		// error code followed by error message
+		
 		edd_set_error('empty_card', __('You must enter a card number', 'donately_edd'));
 	}
 
 	if( empty($_POST['card_cvc'] ) ) {
-		// error code followed by error message
+
 		edd_set_error('empty_cvc', __('You must enter a CVC number', 'donately_edd'));
 	}
 
 	if( empty($_POST['card_name'] ) ) {
-		// error code followed by error message
+
 		edd_set_error('empty_name', __('You must enter a name associated with the credit card', 'donately_edd'));
 	}
 
 	if( empty($_POST['card_exp_month'] ) ) {
-		// error code followed by error message
+
 		edd_set_error('empty_exp_month', __('You must enter an expiry month', 'donately_edd'));
 	}
 
 	if( empty($_POST['card_exp_year'] ) ) {
-		// error code followed by error message
+
 		edd_set_error('empty_exp_year', __('You must enter an expiry year', 'donately_edd'));
 	}
 	
 
-	// check for any stored errors
+	// check for stored errors
 	$errors = edd_get_errors();
 	if ( ! $errors ) {
-
-		$url = 'https://';
-		$url .= $dntly_subdomain;
-		$url .= '.' . $dntly_api_domain;
-		$url .= $dntly_api_endpoint;
-		$url .= $dntly_method;
 
 		
 		$headers = array();
@@ -148,22 +138,13 @@ function dntly_edd_process_payment( $purchase_data ) {
 			));
 
 		$body     = wp_remote_retrieve_body( $response );
-		
 		$donation = json_decode( $body );
 
-		// echo '<pre>';
-		// print_r( $body );
-		// echo '</pre>';
-		// wp_die();
 
 		if( $donation->success ){
 
 			$first_time_donor = ( $donation->donation->first_time_donor ) ? 'Yes' : 'No';
 			$donation_id      = ( $donation->donation->id ) ? $donation->donation->id : 'No ID was returned from Donately';
-
-			$purchase_summary = edd_get_purchase_summary( $purchase_data );
-
-
 
 			/****************************************
 			* setup the payment details to be stored
@@ -222,9 +203,7 @@ add_action( 'edd_gateway_donately_gateway', 'dntly_edd_process_payment' );
 
 
 /**
- * Add the global settings
- * @param  [type] $settings [description]
- * @return [type]           [description]
+ * Add the global settings for Donately
  */
 function dntly_edd_add_settings( $settings ) {
 
@@ -283,6 +262,7 @@ add_filter( 'edd_settings_gateways', 'dntly_edd_add_settings' );
 
 /**
  * Renders the campaigns metabox fields
+ * (not currently in use yet)
  * 
  * @param  [type] $post_id [description]
  * @return [type]          [description]
@@ -313,7 +293,7 @@ function dntly_edd_render_campaigns( $post_id ) {
 // add_action( 'edd_meta_box_settings_fields', 'dntly_edd_render_campaigns', 90 );
 
 /**
- * Save the Campaign ID
+ * Save the Campaign ID (not currently in use)
  * @param  [type] $fields [description]
  * @return [type]         [description]
  */
@@ -329,7 +309,7 @@ function dntly_edd_campaigns_save( $fields ) {
 
 
 /**
- * Get the Campaigns from Donately
+ * Get the Campaigns from Donately (not currently in use yet)
  * @return [type] [description]
  */
 function dntly_edd_get_campaigns()
@@ -383,8 +363,6 @@ function dntly_edd_get_campaigns()
 
 	return false;
 
-	
-
 }
 
 
@@ -428,6 +406,12 @@ function dntly_edd_donate_anoynmously_fields() {
 }
 add_action('edd_purchase_form_before_email', 'dntly_edd_donate_anoynmously_fields');
 
+
+/**
+ * Adds the comment field if set to
+ * the bottom of the form user info section
+ * @return [type] [description]
+ */
 function dntly_edd_comment_field(){
 	global $edd_options;
 
@@ -448,8 +432,8 @@ add_action( 'edd_purchase_form_user_info', 'dntly_edd_comment_field' );
 
 /**
  * Store custom meta (anonymous)
- * @param  [type] $payment_meta [description]
- * @return [type]               [description]
+ * @param  array $payment_meta 
+ * @return array               
  */
 function dntly_edd_store_anonymous_donation($payment_meta) {
 	global $edd_options;
@@ -474,9 +458,6 @@ add_filter('edd_payment_meta', 'dntly_edd_store_anonymous_donation');
 
 /**
  * Render donation type in the view order details popup
- * @param  [type] $payment_meta [description]
- * @param  [type] $user_info    [description]
- * @return [type]               [description]
  */
 function dntly_edd_donation_details($payment_meta, $user_info) {
 	global $edd_options;
@@ -504,4 +485,3 @@ function dntly_edd_donation_details($payment_meta, $user_info) {
 	
 }
 add_action('edd_payment_personal_details_list', 'dntly_edd_donation_details', 10, 2);
-
