@@ -59,6 +59,16 @@ function dntly_edd_process_payment( $purchase_data ) {
 
 	}
 
+	$disable_email = !empty( $edd_options['dntly_disable_donately_email'] ) ? true : false;
+	$anonymous     = !empty( $purchase_data['post_data']['dntly_edd_anonymous'] ) ? true : false;
+	$onbehalf      = !empty( $purchase_data['post_data']['dntly_edd_on_behalf'] ) ? $purchase_data['post_data']['dntly_edd_on_behalf'] : null;
+
+	/*echo '<pre>';
+	print_r( $purchase_data );
+	echo '</pre>';
+	wp_die();*/
+
+
 
 	/**********************************
 	* check for errors here
@@ -121,14 +131,16 @@ function dntly_edd_process_payment( $purchase_data ) {
 			'blocking'    => true,
 			'headers'     => $headers,
 			'body'        => array( 
-				'amount_in_cents' 	=> $purchase_data['price'] * 100,
-				'email' 			=> $purchase_data['user_info']['email'],
-				'card'              => $card,
-				'recurring'         => false,
-				'first_name'		=> $purchase_data['user_info']['first_name'],
-				'last_name'			=> $purchase_data['user_info']['last_name'],
-				'anonymous'			=> false,
-				'campaign_id'		=> ''
+				'amount_in_cents'         => $purchase_data['price'] * 100,
+				'email'                   => $purchase_data['user_info']['email'],
+				'card'                    => $card,
+				'recurring'               => false,
+				'first_name'              => $purchase_data['user_info']['first_name'],
+				'last_name'               => $purchase_data['user_info']['last_name'],
+				'anonymous'               => $anonymous,
+				'campaign_id'             => '',
+				'dont_send_receipt_email' => $disable_email,
+				'on_behalf_of'			  => $onbehalf,
 			),
 			'cookies'     => array()
 			));
@@ -235,7 +247,25 @@ function dntly_edd_add_settings( $settings ) {
 			'desc' => __( 'Enter your subdomain from Donately', 'dntly_edd' ),
 			'type' => 'text',
 			'size' => 'regular'
-		)
+		),
+		array(
+			'id' => 'dntly_disable_donately_email',
+			'name' => __( 'Disable Donately Email', 'dntly_edd' ),
+			'desc' => __( 'Check the box to disable Donately\'s email receipt. A create account email will still be sent from Donately.', 'dntly_edd' ),
+			'type' => 'checkbox'
+		),
+		array(
+			'id' => 'dntly_anonymous',
+			'name' => __( 'Allow Anonymous Donations', 'dntly_edd' ),
+			'desc' => __( 'Check the box to allow donors to contribute anonymously.', 'dntly_edd' ),
+			'type' => 'checkbox'
+		),
+		array(
+			'id' => 'dntly_on_behalf',
+			'name' => __( 'Allow On Belhaf Of Donations', 'dntly_edd' ),
+			'desc' => __( 'Check the box to allow donors to donate on behalf of people.', 'dntly_edd' ),
+			'type' => 'checkbox'
+		),
 	);
 
 	return array_merge( $settings, $donately_gateway_settings );
@@ -297,6 +327,8 @@ add_filter( 'edd_metabox_fields_save', 'dntly_edd_campaigns_save' );
 function dntly_edd_get_campaigns()
 {
 	global $edd_options;
+
+
 
 	if ( edd_is_test_mode() ) {
 		// set test credentials here
@@ -361,4 +393,79 @@ function edd_descriptive_text2_callback( $args ) {
 	echo  $args['desc'];
 }
 
+
+/**
+ * Render form fields
+ * @return [type] [description]
+ */
+function dntly_edd_donate_anoynmously_fields() {
+	global $edd_options;
+
+	if( $edd_options['dntly_anonymous'] ) { ?>
+	<p id="edd-anonymous-wrap">
+		<label class="edd-label" for="edd-anonymous"><?php _e('Donate Anonymously', 'dntly_edd'); ?></label>
+		<input class="edd-checkbox" style="margin-top:5px;" type="checkbox" name="dntly_edd_anonymous" id="dntly_edd_anonymous" value="1"/>
+		<span class="edd-description"><?php _e( 'Check the box to donate anonymously.', 'dntly_edd' ); ?></span>
+	</p>
+	<?php
+	}
+	if( $edd_options['dntly_on_behalf']) { ?>
+	<p id="edd-on-behalf-wrap">
+		<label class="edd-label" for="edd-on-behalf"><?php _e('Donate on behalf of someone', 'dntly_edd'); ?></label>
+		<input class="edd-input" type="text" name="dntly_edd_on_behalf" id="dntly_edd_on_behalf" value=""/>
+		<span class="edd-description"><?php _e( 'Enter the full name of someone you would like to donate on behalf of.', 'dntly_edd' ); ?></span>
+	</p>
+	
+	<?php
+	}
+}
+add_action('edd_purchase_form_before_email', 'dntly_edd_donate_anoynmously_fields');
+
+
+/**
+ * Store custom meta (anonymous)
+ * @param  [type] $payment_meta [description]
+ * @return [type]               [description]
+ */
+function dntly_edd_store_anonymous_donation($payment_meta) {
+	global $edd_options;
+
+	if( $edd_options['dntly_anonymous']){
+		$payment_meta['anonymous'] = isset( $_POST['dntly_edd_anonymous'] ) ? sanitize_text_field( $_POST['dntly_edd_anonymous'] ) : 0;	
+	}
+
+	if( $edd_options['dntly_on_behalf']){
+		$payment_meta['onbehalf'] = isset( $_POST['dntly_edd_on_behalf'] ) ? sanitize_text_field( $_POST['dntly_edd_on_behalf'] ) : 0;	
+	}
+
+	return $payment_meta;
+}
+add_filter('edd_payment_meta', 'dntly_edd_store_anonymous_donation');
+
+
+/**
+ * Render donation type in the view order details popup
+ * @param  [type] $payment_meta [description]
+ * @param  [type] $user_info    [description]
+ * @return [type]               [description]
+ */
+function dntly_edd_donation_details($payment_meta, $user_info) {
+	global $edd_options;
+
+	if( $edd_options['dntly_anonymous'] ){
+		$anonymous   = isset( $payment_meta['anonymous'] ) ? 'Yes' : 'No';	
+	?>
+	<li><?php echo __('Anonymous Donation:', 'dntly_edd') . ' ' . $anonymous; ?></li>
+	<?php
+	} 
+
+	if( $edd_options['dntly_on_behalf'] ){
+		$onbehalf   = isset( $payment_meta['onbehalf'] ) ? $payment_meta['onbehalf'] : 'No';	
+	?>
+	<li><?php echo __('Donated on behalf of:', 'dntly_edd') . ' ' . $onbehalf; ?></li>
+	<?php
+	} 
+	
+}
+add_action('edd_payment_personal_details_list', 'dntly_edd_donation_details', 10, 2);
 
